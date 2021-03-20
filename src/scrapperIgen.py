@@ -2,10 +2,13 @@
 from urllib.request import Request, urlopen
 from bs4 import BeautifulSoup
 from datetime import datetime, date
+import pandas as pd
+import time
 
 
 class scrapperIgen():
     def __init__(self, startDate, endDate):
+        self.dataFrame = pd.DataFrame()
         self.startDate = startDate
         self.endDate = endDate
         self.months = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9,
@@ -17,10 +20,8 @@ class scrapperIgen():
     def buscarAnios(self, basePath):
         req = Request(basePath, headers={'User-Agent': 'Mozilla/5.0'})
         data = urlopen(req).read()
-
         # Crear nueva URL para unir
         basePathWoHtml = basePath.replace("browser.html", "");
-
         bs = BeautifulSoup(data, 'html.parser')
 
         anios = bs.find_all("div", {"class", "square year"})
@@ -62,17 +63,17 @@ class scrapperIgen():
     def scrape(self):
         basePath = "https://www.igepn.edu.ec/portal/eventos/www/browser.html"
         listaAniosEnlaces = self.buscarAnios(basePath)
-        tupleYears = self.processDates(self.startDate, self.endDate)
-        listaAniosEnlaces = self.filterDatesYear(listaAniosEnlaces, tupleYears[0].year, tupleYears[1].year)
+        self.processDates()
+        listaAniosEnlaces = self.filterDatesYear(listaAniosEnlaces, self.startDate.year, self.endDate.year)
         yearLinks = {}
         for i in (listaAniosEnlaces):
             lstMonthLinks = self.buscarSquareWithLinks(i[1], "square month", i[2])
-            lstMonthLinks = self.filterDatesMonth(lstMonthLinks, i[0], date(tupleYears[0].year, tupleYears[0].month, 1),date(tupleYears[1].year, tupleYears[1].month, 1))
+            lstMonthLinks = self.filterDatesMonth(lstMonthLinks, i[0], date(self.startDate.year, self.startDate.month, 1),date(self.endDate.year, self.endDate.month, 1))
             monthLinks = {}
             if (len(lstMonthLinks) > 0):
                 for month in lstMonthLinks:
                     lstDaysLinks = self.buscarSquareWithLinks(month[1], "square day", month[2])
-                    lstDaysLinks = self.filterDatesDay(lstDaysLinks,i[0], month[0], tupleYears[0], tupleYears[1])
+                    lstDaysLinks = self.filterDatesDay(lstDaysLinks,i[0], month[0], self.startDate, self.endDate)
                     monthLinks[month[0]] = lstDaysLinks
                 yearLinks[i[0]] = monthLinks
         print(yearLinks)
@@ -85,6 +86,7 @@ class scrapperIgen():
                     print(dayLinks)
                     for i in dayLinks:
                         self.scrapeData(i[1])
+                        time.sleep(1)
 
     def filterDatesYear(self, listaAniosEnlaces, start, end):
         if (not listaAniosEnlaces or not start or not end):
@@ -115,33 +117,21 @@ class scrapperIgen():
                 lstYearsFiltered.append(i)
         return lstYearsFiltered;
 
-    def filterDates(self, listaAniosEnlaces, start, end):
-        if (not listaAniosEnlaces or not start or not end):
-            return listaAniosEnlaces
-
-        lstYearsFiltered = []
-        for i in listaAniosEnlaces:
-            if (int(i[0]) >= start and int(i[0]) <= end):
-                lstYearsFiltered.append(i)
-        return lstYearsFiltered;
-
-    def processDates(self, startDate, endDate):
+    def processDates(self):
         # verificar si hay datos con los que se pueda trabajar
-        if (not startDate or not endDate):
-            return []
+        if (not self.startDate or not self.endDate):
+            raise Exception("Rango de fechas es requerido")
 
-        splitStart = startDate.split("/")
-        splitEnd = endDate.split("/")
-        if (not splitStart or not splitEnd or not len(splitStart) == 3 or not len(splitEnd) == 3 or splitStart[2] >
+        splitStart = self.startDate.split("/")
+        splitEnd = self.endDate.split("/")
+        if (not splitStart or not splitEnd or not len(splitStart) >= 3 or not len(splitEnd) >= 3 or splitStart[2] >
                 splitEnd[2]):
-            print("Rango de fechas Incorrecto")
-            return []
+            raise Exception("Rango de fechas es requerido")
         splitStart = [int(i) for i in splitStart]
         splitEnd = [int(i) for i in splitEnd]
-        startDatep = date(splitStart[2],splitStart[1],splitStart[0])
-        endDatep = date(splitEnd[2], splitEnd[1], splitEnd[0])
-
-        return (startDatep, endDatep)
+        self.startDate = date(splitStart[2],splitStart[1],splitStart[0])
+        self.endDate = date(splitEnd[2], splitEnd[1], splitEnd[0])
+        return [self.startDate,self.endDate]
 
     def scrapeData(self, url):
         req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -150,15 +140,22 @@ class scrapperIgen():
         lstTables = bs.find_all("table", {"class": "events"})
         if (len(lstTables)>0):
             for table in lstTables:
-                cabecera = table.find_all("thead")[0];
+                datasetLocal = []
+                cabecera = list(td.get_text() for td in table.find_all("thead")[0].find_all("td"))
                 cuerpo = table.find_all("tbody")[0];
                 if (cuerpo):
-                    rows = cuerpo.find_all("tr")
-                    if (rows):
-                        for row in rows:
-                            registros = row.find_all("td")
-                            if (registros):
-                                for reg in registros:
-                                    print(reg.string)
+                    if (cuerpo.find_all("tr")):
+                        for row in cuerpo.find_all("tr"):
+                            dataset = list(td.get_text() for td in row.find_all("td"))
+                            if len(dataset)==12:
+                                datasetLocal.append(dataset)
+            df = pd.DataFrame(datasetLocal, columns=cabecera)
+            frames = [df,self.dataFrame]
+            self.dataFrame = pd.concat(frames)
+        print(self.dataFrame)
 
 
+
+    def writeFile(self):
+        date_time = self.startDate.strftime("%m_%d_%Y") + "-" + self.endDate.strftime("%m_%d_%Y")
+        self.dataFrame.to_csv(str(date_time + 'sismos.csv'), index=False, encoding='utf-8')
