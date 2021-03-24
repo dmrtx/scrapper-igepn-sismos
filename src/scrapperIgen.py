@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, date
 import pandas as pd
 import time
+import re
 
 
 class scrapperIgen():
@@ -154,6 +155,37 @@ class scrapperIgen():
             self.dataFrame = pd.concat(frames)
         print(self.dataFrame)
 
+    def procesarStrUbicacion(self, stringub):
+        if (len(stringub)>0):
+            num = re.findall("\d+\.\d+", stringub)
+            if stringub[-1] in ["W", "S"]:
+                return -1. * float(num[0])
+            else:
+                return float(num[0])
+
+    def procesarRegion(self, strregion):
+        if (len(strregion) > 0):
+            strregion = strregion.upper()
+            if ("ECUADOR - " in strregion):
+                return strregion.replace("ECUADOR - ","").strip()
+            elif ("NEAR COAST OF" in strregion):
+                return "COSTA DE ECUADOR"
+            elif (" BORDER REGION" in strregion):
+                strregion = strregion.replace("BORDER REGION", "").strip()
+                strregion = "FRONTERA "+strregion
+                return strregion;
+            return strregion
+
+    def procesarDataFrame(self):
+        self.dataFrame[self.dataFrame.columns] = self.dataFrame.apply(lambda x: x.str.strip())
+        self.dataFrame.columns = self.dataFrame.columns.str.strip()
+        del self.dataFrame["Hora Local"];
+        del self.dataFrame["Tipo"];
+        del self.dataFrame["Ciudad mas cercana"];
+        del self.dataFrame["Modo"];
+        self.dataFrame["Lat"] = self.dataFrame["Lat"].apply(self.procesarStrUbicacion)
+        self.dataFrame["Long"] = self.dataFrame["Long"].apply(self.procesarStrUbicacion)
+        self.dataFrame["Region"] = self.dataFrame["Region"].apply(self.procesarRegion)
 
 
     def writeFile(self):
