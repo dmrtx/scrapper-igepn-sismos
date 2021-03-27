@@ -1,7 +1,12 @@
 from scrapperIgen import scrapperIgen
-startDate = "01/01/2021"
-endDate = "31/01/2021"
+from twitterscrapper import twitterscrapper
+startDate = "01/01/2013"
+endDate = "30/05/2019"
 scrapper = scrapperIgen(startDate, endDate)
+scrapperTwitter = twitterscrapper()
+dftwiter = scrapperTwitter.scrape()
+
 results = scrapper.scrape();
 scrapper.procesarDataFrame()
+scrapper.joinFile(dftwiter)
 scrapper.writeFile()

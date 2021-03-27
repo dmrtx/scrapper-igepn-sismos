@@ -135,8 +135,12 @@ class scrapperIgen():
         return [self.startDate,self.endDate]
 
     def scrapeData(self, url):
-        req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        data = urlopen(req).read()
+        try:
+            req = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            data = urlopen(req).read()
+        except:
+            print("URL no encontrada "+url)
+            return
         bs = BeautifulSoup(data, 'html.parser')
         lstTables = bs.find_all("table", {"class": "events"})
         if (len(lstTables)>0):
@@ -153,7 +157,7 @@ class scrapperIgen():
             df = pd.DataFrame(datasetLocal, columns=cabecera)
             frames = [df,self.dataFrame]
             self.dataFrame = pd.concat(frames)
-        print(self.dataFrame)
+        print(url)
 
     def procesarStrUbicacion(self, stringub):
         if (len(stringub)>0):
@@ -183,11 +187,19 @@ class scrapperIgen():
         del self.dataFrame["Tipo"];
         del self.dataFrame["Ciudad mas cercana"];
         del self.dataFrame["Modo"];
+        self.dataFrame["Hora UTC"] = pd.to_datetime(self.dataFrame["Hora UTC"]);
+        self.dataFrame["Update"] = pd.to_datetime(self.dataFrame["Update"]);
         self.dataFrame["Lat"] = self.dataFrame["Lat"].apply(self.procesarStrUbicacion)
         self.dataFrame["Long"] = self.dataFrame["Long"].apply(self.procesarStrUbicacion)
         self.dataFrame["Region"] = self.dataFrame["Region"].apply(self.procesarRegion)
+        self.dataFrame["ID"] = self.dataFrame["ID Evento"]
+        del self.dataFrame["ID Evento"];
 
+    def joinFile(self, twitterScrappe):
+        frames = [self.dataFrame, twitterScrappe]
+        self.dataFrame = pd.concat(frames)
 
     def writeFile(self):
+        self.dataFrame = self.dataFrame.drop_duplicates(subset=['ID'], keep='last')
         date_time = self.startDate.strftime("%m_%d_%Y") + "-" + self.endDate.strftime("%m_%d_%Y")
         self.dataFrame.to_csv(str(date_time + 'sismos.csv'), index=False, encoding='utf-8')
