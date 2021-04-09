@@ -8,4 +8,4 @@ Este es un trabajo de webscrapping de los registros sísmicos publicados en la p
 El repositorio cuenta con con las siguientes carpetas:
 * src: archivos con código python para realizar web scraping. 
 * dataset: dataset generado
-* pdf: informe generado
+* html: informe generado
